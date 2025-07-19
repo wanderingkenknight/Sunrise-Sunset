@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sunrise & Sunset Calculator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+```
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 20px;
+    }
+
+    .container {
+        max-width: 400px;
+        margin: 0 auto;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        padding: 30px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+    }
+
+    .header {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+
+    .header h1 {
+        color: #333;
+        font-size: 28px;
+        font-weight: 600;
+        margin-bottom: 8px;
+    }
+
+    .header p {
+        color: #666;
+        font-size: 16px;
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    label {
+        display: block;
+        color: #333;
+        font-weight: 500;
+        margin-bottom: 8px;
+        font-size: 16px;
+    }
+
+    input {
+        width: 100%;
+        padding: 12px 16px;
+        border: 2px solid #e0e0e0;
+        border-radius: 12px;
+        font-size: 16px;
+        transition: all 0.3s ease;
+        background: white;
+    }
+
+    input:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .location-inputs {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+
+    .calculate-btn {
+        width: 100%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 16px;
+        border-radius: 12px;
+        font-size: 18px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        margin-top: 10px;
+    }
+
+    .calculate-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+    }
+
+    .calculate-btn:active {
+        transform: translateY(0);
+    }
+
+    .results {
+        margin-top: 30px;
+        padding: 25px;
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        border-radius: 16px;
+        color: white;
+        text-align: center;
+        display: none;
+    }
+
+    .results.show {
+        display: block;
+        animation: fadeInUp 0.5s ease;
+    }
+
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .result-item {
+        margin-bottom: 15px;
+    }
+
+    .result-label {
+        font-size: 14px;
+        opacity: 0.9;
+        margin-bottom: 5px;
+    }
+
+    .result-time {
+        font-size: 24px;
+        font-weight: 700;
+    }
+
+    .location-btn {
+        background: #4CAF50;
+        color: white;
+        border: none;
+        padding: 12px 16px;
+        border-radius: 8px;
+        font-size: 14px;
+        cursor: pointer;
+        margin-top: 10px;
+        width: 100%;
+        transition: all 0.3s ease;
+    }
+
+    .location-btn:hover {
+        background: #45a049;
+    }
+
+    .error {
+        background: #f44336;
+        color: white;
+        padding: 15px;
+        border-radius: 8px;
+        margin-top: 15px;
+        text-align: center;
+        display: none;
+    }
+
+    .error.show {
+        display: block;
+    }
+</style>
+```
+
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌅 Sunrise & Sunset</h1>
+            <p>Calculate times for any location</p>
+        </div>
+
+```
+    <form id="calculatorForm">
+        <div class="form-group">
+            <label for="date">Date</label>
+            <input type="date" id="date" required>
+        </div>
+
+        <div class="form-group">
+            <label>Location Coordinates</label>
+            <div class="location-inputs">
+                <input type="number" id="latitude" placeholder="Latitude" step="any" required>
+                <input type="number" id="longitude" placeholder="Longitude" step="any" required>
+            </div>
+            <button type="button" class="location-btn" id="getLocationBtn">📍 Use Current Location</button>
+        </div>
+
+        <button type="submit" class="calculate-btn">Calculate Times</button>
+    </form>
+
+    <div class="error" id="error"></div>
+
+    <div class="results" id="results">
+        <div class="result-item">
+            <div class="result-label">Sunrise</div>
+            <div class="result-time" id="sunrise">--:--</div>
+        </div>
+        <div class="result-item">
+            <div class="result-label">Sunset</div>
+            <div class="result-time" id="sunset">--:--</div>
+        </div>
+        <div class="result-label" id="location-info">Location: --</div>
+    </div>
+</div>
+
+<script>
+    // Set today's date as default
+    document.getElementById('date').valueAsDate = new Date();
+
+    // Geolocation functionality
+    document.getElementById('getLocationBtn').addEventListener('click', function() {
+        if (navigator.geolocation) {
+            this.textContent = '📍 Getting location...';
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    document.getElementById('latitude').value = position.coords.latitude.toFixed(6);
+                    document.getElementById('longitude').value = position.coords.longitude.toFixed(6);
+                    this.textContent = '📍 Location updated!';
+                    setTimeout(() => {
+                        this.textContent = '📍 Use Current Location';
+                    }, 2000);
+                },
+                (error) => {
+                    showError('Unable to get your location. Please enter coordinates manually.');
+                    this.textContent = '📍 Use Current Location';
+                }
+            );
+        } else {
+            showError('Geolocation is not supported by this browser.');
+        }
+    });
+
+    // Form submission
+    document.getElementById('calculatorForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        calculateSunTimes();
+    });
+
+    function calculateSunTimes() {
+        const date = new Date(document.getElementById('date').value);
+        const lat = parseFloat(document.getElementById('latitude').value);
+        const lng = parseFloat(document.getElementById('longitude').value);
+
+        if (isNaN(lat) || isNaN(lng)) {
+            showError('Please enter valid coordinates.');
+            return;
+        }
+
+        if (lat < -90 || lat > 90) {
+            showError('Latitude must be between -90 and 90 degrees.');
+            return;
+        }
+
+        if (lng < -180 || lng > 180) {
+            showError('Longitude must be between -180 and 180 degrees.');
+            return;
+        }
+
+        try {
+            const times = getSunTimes(date, lat, lng);
+            displayResults(times, lat, lng);
+            hideError();
+        } catch (error) {
+            showError('Error calculating sun times: ' + error.message);
+        }
+    }
+
+    function getSunTimes(date, lat, lng) {
+        const rad = Math.PI / 180;
+        const dayOfYear = getDayOfYear(date);
+        const P = Math.asin(.39795 * Math.cos(.98563 * (dayOfYear - 173) * rad));
+        const argument = -Math.tan(lat * rad) * Math.tan(P);
+        
+        // Check for polar day/night
+        if (argument < -1) {
+            return { sunrise: 'No sunset', sunset: 'No sunset', polarDay: true };
+        }
+        if (argument > 1) {
+            return { sunrise: 'No sunrise', sunset: 'No sunrise', polarNight: true };
+        }
+        
+        const A = Math.acos(argument) / rad;
+        const sunrise = 12 - A / 15 - lng / 15 + getTimeOffset(date, lng);
+        const sunset = 12 + A / 15 - lng / 15 + getTimeOffset(date, lng);
+        
+        return {
+            sunrise: formatTime(sunrise),
+            sunset: formatTime(sunset)
+        };
+    }
+
+    function getDayOfYear(date) {
+        const start = new Date(date.getFullYear(), 0, 0);
+        const diff = date - start;
+        return Math.floor(diff / (1000 * 60 * 60 * 24));
+    }
+
+    function getTimeOffset(date, lng) {
+        // Simplified equation of time approximation
+        const dayOfYear = getDayOfYear(date);
+        const B = 2 * Math.PI * (dayOfYear - 81) / 365;
+        const E = 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B);
+        return E / 60; // Convert minutes to hours
+    }
+
+    function formatTime(hours) {
+        if (typeof hours !== 'number') return hours;
+        
+        // Handle negative hours and hours > 24
+        hours = ((hours % 24) + 24) % 24;
+        
+        const h = Math.floor(hours);
+        const m = Math.round((hours - h) * 60);
+        const adjustedM = m === 60 ? 0 : m;
+        const adjustedH = m === 60 ? (h + 1) % 24 : h;
+        
+        return `${adjustedH.toString().padStart(2, '0')}:${adjustedM.toString().padStart(2, '0')}`;
+    }
+
+    function displayResults(times, lat, lng) {
+        document.getElementById('sunrise').textContent = times.sunrise;
+        document.getElementById('sunset').textContent = times.sunset;
+        document.getElementById('location-info').textContent = 
+            `Location: ${lat.toFixed(4)}°, ${lng.toFixed(4)}°`;
+        document.getElementById('results').classList.add('show');
+    }
+
+    function showError(message) {
+        const errorDiv = document.getElementById('error');
+        errorDiv.textContent = message;
+        errorDiv.classList.add('show');
+    }
+
+    function hideError() {
+        document.getElementById('error').classList.remove('show');
+    }
+</script>
+```
+
+</body>
+</html>
