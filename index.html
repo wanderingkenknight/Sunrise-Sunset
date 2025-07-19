@@ -78,8 +78,7 @@
     const locateBtn = document.getElementById('locate');
     const output = document.getElementById('output');
 
-    const today = new Date().toISOString().split('T')[0];
-    dateI.value = today;
+    dateI.value = new Date().toISOString().split('T')[0];
 
     const map = L.map('map').setView([latI.value, lngI.value], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -104,18 +103,22 @@
     }
 
     function fmt(dt) {
-      if (!dt) return '—';
+      if (!dt || isNaN(dt.getTime())) return '—';
       return luxon.DateTime.fromJSDate(dt).toFormat('HH:mm');
     }
 
+    function azDeg(radians) {
+      return Math.round((radians * 180 / Math.PI + 180) % 360);
+    }
+
     function phaseName(p) {
-      if (p === 0) return 'New Moon';
-      if (p < 0.25) return 'Waxing Crescent';
-      if (p === 0.25) return 'First Quarter';
-      if (p < 0.5) return 'Waxing Gibbous';
-      if (p === 0.5) return 'Full Moon';
-      if (p < 0.75) return 'Waning Gibbous';
-      if (p === 0.75) return 'Last Quarter';
+      if (p < 0.03 || p > 0.97) return 'New Moon';
+      if (p < 0.22) return 'Waxing Crescent';
+      if (p < 0.28) return 'First Quarter';
+      if (p < 0.47) return 'Waxing Gibbous';
+      if (p < 0.53) return 'Full Moon';
+      if (p < 0.72) return 'Waning Gibbous';
+      if (p < 0.78) return 'Last Quarter';
       return 'Waning Crescent';
     }
 
@@ -132,6 +135,8 @@
       const mode = modeI.value;
 
       const times = SunCalc.getTimes(date, lat, lng);
+      const civilDawn = times.dawn || times.civilDawn;
+      const civilDusk = times.dusk || times.civilDusk;
       const sunR = SunCalc.getPosition(times.sunrise, lat, lng);
       const sunS = SunCalc.getPosition(times.sunset, lat, lng);
 
@@ -145,18 +150,24 @@
       let html = '';
       try {
         if (mode === 'sun' || mode === 'both') {
-          drawLine(lat, lng, sunR.azimuth * 180 / Math.PI + 180, 'Sunrise', 'orange');
-          drawLine(lat, lng, sunS.azimuth * 180 / Math.PI + 180, 'Sunset', 'purple');
-          html += `<b>🌅 Sunrise:</b> ${fmt(times.sunrise)}<br>`;
-          html += `<b>🌇 Sunset:</b> ${fmt(times.sunset)}<br>`;
-          const civilDawn = times.dawn || times.civilDawn; const civilDusk = times.dusk || times.civilDusk;  html += `<b>🌌 Civil Dawn:</b> ${fmt(civilDawn)} &nbsp; <b>Civil Dusk:</b> ${fmt(civilDusk)}<br><br>`;
+          const sunRiseAz = azDeg(sunR.azimuth);
+          const sunSetAz = azDeg(sunS.azimuth);
+          drawLine(lat, lng, sunRiseAz, 'Sunrise', 'orange');
+          drawLine(lat, lng, sunSetAz, 'Sunset', 'purple');
+
+          html += `<b>🌅 Sunrise:</b> ${fmt(times.sunrise)} (${sunRiseAz}°)<br>`;
+          html += `<b>🌇 Sunset:</b> ${fmt(times.sunset)} (${sunSetAz}°)<br>`;
+          html += `<b>🌌 Civil Dawn:</b> ${fmt(civilDawn)} &nbsp; <b>Civil Dusk:</b> ${fmt(civilDusk)}<br><br>`;
         }
 
         if (mode === 'moon' || mode === 'both') {
-          if (mR) drawLine(lat, lng, mR.azimuth * 180 / Math.PI + 180, 'Moonrise', 'blue');
-          if (mS) drawLine(lat, lng, mS.azimuth * 180 / Math.PI + 180, 'Moonset', 'darkblue');
-          html += `<b>🌙 Moonrise:</b> ${moonT.rise ? fmt(moonT.rise) : '—'}<br>`;
-          html += `<b>🌙 Moonset:</b> ${moonT.set ? fmt(moonT.set) : '—'}<br>`;
+          const moonRiseAz = mR ? azDeg(mR.azimuth) : null;
+          const moonSetAz = mS ? azDeg(mS.azimuth) : null;
+          if (mR) drawLine(lat, lng, moonRiseAz, 'Moonrise', 'blue');
+          if (mS) drawLine(lat, lng, moonSetAz, 'Moonset', 'darkblue');
+
+          html += `<b>🌙 Moonrise:</b> ${moonT.rise ? fmt(moonT.rise) + ` (${moonRiseAz}°)` : '—'}<br>`;
+          html += `<b>🌙 Moonset:</b> ${moonT.set ? fmt(moonT.set) + ` (${moonSetAz}°)` : '—'}<br>`;
           html += `<b>Moon Phase:</b> ${phaseName(mI.phase)} (${Math.round(mI.fraction * 100)}% illuminated)<br>`;
         }
 
