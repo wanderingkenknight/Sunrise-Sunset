@@ -1,144 +1,147 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Sun & Moon Azimuth</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#222">
+  <meta charset="UTF-8" />
+  <title>Sun &amp; Moon Azimuth</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#222" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
   <style>
-    body { margin: 0; background: #f5f5f5; font-family: sans-serif; display: flex; flex-direction: column; height: 100vh; }
-    .inputs { background: #fff; padding: 10px; display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; }
-    .inputs label { flex: 1 1 150px; font-size: 0.9em; display: flex; flex-direction: column; }
-    .inputs button { flex: 1 1 100px; margin-top: 24px; }
-    #map { flex-grow: 1; }
-    #output { padding: 10px; background: #fff; font-size: 0.95em; }
+    body { margin: 0; padding: 0; font-family: sans-serif; display: flex; flex-direction: column; height: 100vh; }
+    .inputs { background: #fff; padding: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); display: flex; flex-wrap: wrap; gap: 10px; }
+    .inputs label { flex: 1 1 150px; display: flex; flex-direction: column; font-size: 0.9em; }
+    .inputs button { flex: 1 1 120px; align-self: flex-end; padding: 10px; font-size: 1em; }
+    #map { flex: 1; }
+    #output { background: #fff; padding: 12px; font-size: 0.95em; box-shadow: 0 -1px 4px rgba(0,0,0,0.1); }
     @media (max-width: 600px) { .inputs { flex-direction: column; } }
   </style>
 </head>
 <body>
 
-<div class="inputs">
-  <label>Latitude <input id="lat" type="number" step="0.0001" value="40.7128"></label>
-  <label>Longitude <input id="lng" type="number" step="0.0001" value="-74.0060"></label>
-  <label>Date <input id="date" type="date"></label>
-  <label>Show
-    <select id="mode">
+  <div class="inputs">
+    <label>Latitude<input id="lat" type="number" step="0.0001" value="40.7128"></label>
+    <label>Longitude<input id="lng" type="number" step="0.0001" value="-74.0060"></label>
+    <label>Date<input id="date" type="date"></label>
+    <label>Show<select id="mode">
       <option value="both">Sun & Moon</option>
       <option value="sun">Sun only</option>
       <option value="moon">Moon only</option>
-    </select>
-  </label>
-  <button onclick="useCurrentLocation()">📍 My Location</button>
-</div>
+    </select></label>
+    <button id="locBtn">📍 My Location</button>
+  </div>
 
-<div id="map"></div>
-<div id="output">Loading…</div>
+  <div id="map"></div>
+  <div id="output">Loading...</div>
 
-<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
-<script src="https://unpkg.com/suncalc@1.9.0/suncalc.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/luxon@3.3.0/build/global/luxon.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/suncalc@1.9.0/suncalc.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/luxon@3.3.0/build/global/luxon.min.js"></script>
 
-<script>
-  const map = L.map('map').setView([40.7128, -74.0060], 13);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors'
-  }).addTo(map);
+  <script>
+    // Initialize map
+    const map = L.map('map').setView([40.7128, -74.0060], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
 
-  const latI = document.getElementById('lat');
-  const lngI = document.getElementById('lng');
-  const dateI = document.getElementById('date');
-  const modeI = document.getElementById('mode');
-  const output = document.getElementById('output');
+    const latI = document.getElementById('lat'),
+          lngI = document.getElementById('lng'),
+          dateI = document.getElementById('date'),
+          modeI = document.getElementById('mode'),
+          locBtn = document.getElementById('locBtn'),
+          output = document.getElementById('output');
 
-  dateI.valueAsDate = new Date();
+    // Set default date to today
+    dateI.value = new Date().toISOString().split('T')[0];
 
-  function fmt(d, zone) {
-    return d ? luxon.DateTime.fromJSDate(d).setZone(zone).toFormat('HH:mm') : '—';
-  }
-
-  function moonPhaseName(p) {
-    if (p < 0.03 || p > 0.97) return 'New Moon';
-    if (p < 0.22) return 'Waxing Crescent';
-    if (p < 0.28) return 'First Quarter';
-    if (p < 0.47) return 'Waxing Gibbous';
-    if (p < 0.53) return 'Full Moon';
-    if (p < 0.72) return 'Waning Gibbous';
-    if (p < 0.78) return 'Last Quarter';
-    return 'Waning Crescent';
-  }
-
-  let arrows = [];
-  function clearArrows() { arrows.forEach(a=>map.removeLayer(a)); arrows=[]; }
-
-  function drawArrow(lat, lng, az, label, color) {
-    const len = 0.01;
-    const ang = az*Math.PI/180;
-    const dx = len*Math.sin(ang);
-    const dy = len*Math.cos(ang);
-    const arrow = L.polyline([[lat, lng], [lat+dx, lng+dy]], { color, weight: 3 }).addTo(map);
-    arrow.bindTooltip(label, { permanent: true, direction: 'right', className: 'arrow-label' });
-    arrows.push(arrow);
-  }
-
-  function update() {
-    const lat = +latI.value, lng = +lngI.value;
-    const dateVal = dateI.value;
-    if (!dateVal) return;
-    const date = new Date(dateVal + 'T12:00:00');
-    const zone = luxon.DateTime.local().zoneName;
-    const mode = modeI.value;
-    const times = SunCalc.getTimes(date, lat, lng);
-    const sRise = SunCalc.getPosition(times.sunrise, lat, lng);
-    const sSet = SunCalc.getPosition(times.sunset, lat, lng);
-    const mT = SunCalc.getMoonTimes(date, lat, lng);
-    const mRise = mT.rise && SunCalc.getMoonPosition(mT.rise, lat, lng);
-    const mSet = mT.set && SunCalc.getMoonPosition(mT.set, lat, lng);
-    const mIll = SunCalc.getMoonIllumination(date);
-
-    clearArrows();
-
-    let html = '';
-    if (mode==='sun' || mode==='both') {
-      drawArrow(lat, lng, sRise.azimuth*180/Math.PI+180, ' Sunrise','orange');
-      drawArrow(lat, lng, sSet.azimuth*180/Math.PI+180, ' Sunset','purple');
-      html += `<b>🌅 Sunrise:</b> ${fmt(times.sunrise, zone)} (${Math.round(sRise.azimuth*180/Math.PI+180)}°)<br>`;
-      html += `<b>🌇 Sunset:</b> ${fmt(times.sunset, zone)} (${Math.round(sSet.azimuth*180/Math.PI+180)}°)<br>`;
-      html += `<b>🌌 Civil Dawn:</b> ${fmt(times.civilDawn, zone)} &nbsp; <b>Civil Dusk:</b> ${fmt(times.civilDusk, zone)}<br><br>`;
+    // Format time safely
+    function formatTime(d) {
+      return d ? luxon.DateTime.fromJSDate(d).toFormat('HH:mm') : '—';
     }
-    if (mode==='moon' || mode==='both') {
-      if (mRise) drawArrow(lat, lng, mRise.azimuth*180/Math.PI+180, ' Moonrise','blue');
-      if (mSet) drawArrow(lat, lng, mSet.azimuth*180/Math.PI+180, ' Moonset','darkblue');
-      html += `<b>🌙 Moonrise:</b> ${fmt(mT.rise, zone)} (${mRise?Math.round(mRise.azimuth*180/Math.PI+180)+'°':'—'})<br>`;
-      html += `<b>🌙 Moonset:</b> ${fmt(mT.set, zone)} (${mSet?Math.round(mSet.azimuth*180/Math.PI+180)+'°':'—'})<br>`;
-      html += `<b>Moon Phase:</b> ${moonPhaseName(mIll.phase)} (${Math.round(mIll.fraction*100)}% illuminated)<br>`;
+    function phaseName(p) {
+      if (p < 0.03 || p > 0.97) return 'New Moon';
+      if (p < 0.22) return 'Waxing Crescent';
+      if (p < 0.28) return 'First Quarter';
+      if (p < 0.47) return 'Waxing Gibbous';
+      if (p < 0.53) return 'Full Moon';
+      if (p < 0.72) return 'Waning Gibbous';
+      if (p < 0.78) return 'Last Quarter';
+      return 'Waning Crescent';
     }
 
-    output.innerHTML = html;
-    map.setView([lat, lng], 13);
-  }
+    let layers = [];
+    function clearLayers() {
+      layers.forEach(l => map.removeLayer(l));
+      layers = [];
+    }
 
-  latI.addEventListener('change', update);
-  lngI.addEventListener('change', update);
-  dateI.addEventListener('change', update);
-  modeI.addEventListener('change', update);
+    function drawArrow(lat, lng, az, label, color) {
+      const len = 0.008;
+      const rad = az * Math.PI / 180;
+      const dy = len * Math.cos(rad);
+      const dx = len * Math.sin(rad);
+      const pts = [[lat, lng], [lat + dy, lng + dx]];
+      const line = L.polyline(pts, { color, weight: 3 }).addTo(map)
+                  .bindTooltip(label, { permanent: true, direction: 'right' });
+      layers.push(line);
+    }
 
-  function useCurrentLocation() {
-    navigator.geolocation.getCurrentPosition(p => {
-      latI.value = p.coords.latitude.toFixed(4);
-      lngI.value = p.coords.longitude.toFixed(4);
-      update();
-    }, () => alert('Unable to fetch location'));
-  }
+    function update() {
+      const lat = parseFloat(latI.value), lng = parseFloat(lngI.value),
+            dateStr = dateI.value;
+      if (!dateStr) {
+        output.textContent = 'Please select a date';
+        return;
+      }
+      const date = new Date(dateStr + 'T12:00:00');
+      const mode = modeI.value;
 
-  update();
+      const times = SunCalc.getTimes(date, lat, lng);
+      const sunRisePos = SunCalc.getPosition(times.sunrise, lat, lng);
+      const sunSetPos = SunCalc.getPosition(times.sunset, lat, lng);
+      const moonT = SunCalc.getMoonTimes(date, lat, lng);
+      const moonRisePos = moonT.rise ? SunCalc.getMoonPosition(moonT.rise, lat, lng) : null;
+      const moonSetPos = moonT.set ? SunCalc.getMoonPosition(moonT.set, lat, lng) : null;
+      const moonIll = SunCalc.getMoonIllumination(date);
 
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('service-worker.js')
-      .catch(e => console.warn('SW registration failed', e));
-  }
-</script>
+      clearLayers();
 
+      let html = '';
+      if (mode === 'sun' || mode === 'both') {
+        drawArrow(lat, lng, sunRisePos.azimuth * 180/Math.PI + 180, ' Sunrise', 'orange');
+        drawArrow(lat, lng, sunSetPos.azimuth * 180/Math.PI + 180, ' Sunset', 'purple');
+        html += `<b>🌅 Sunrise:</b> ${formatTime(times.sunrise)} (${Math.round(sunRisePos.azimuth*180/Math.PI+180)}°)<br>`;
+        html += `<b>🌇 Sunset:</b> ${formatTime(times.sunset)} (${Math.round(sunSetPos.azimuth*180/Math.PI+180)}°)<br>`;
+        html += `<b>🌌 Civil Dawn:</b> ${formatTime(times.civilDawn)} &nbsp; <b>Civil Dusk:</b> ${formatTime(times.civilDusk)}<br><br>`;
+      }
+      if (mode === 'moon' || mode === 'both') {
+        if (moonRisePos) drawArrow(lat, lng, moonRisePos.azimuth * 180/Math.PI + 180, ' Moonrise', 'blue');
+        if (moonSetPos) drawArrow(lat, lng, moonSetPos.azimuth * 180/Math.PI + 180, ' Moonset', 'darkblue');
+        html += `<b>🌙 Moonrise:</b> ${formatTime(moonT.rise)} (${moonRisePos ? Math.round(moonRisePos.azimuth*180/Math.PI+180)+'°' : '—'})<br>`;
+        html += `<b>🌙 Moonset:</b> ${formatTime(moonT.set)} (${moonSetPos ? Math.round(moonSetPos.azimuth*180/Math.PI+180)+'°' : '—'})<br>`;
+        html += `<b>Moon Phase:</b> ${phaseName(moonIll.phase)} (${Math.round(moonIll.fraction*100)}% illum.)<br>`;
+      }
+
+      output.innerHTML = html;
+      map.setView([lat, lng], 13);
+    }
+
+    // Event listeners
+    [latI, lngI, dateI, modeI].forEach(el => el.addEventListener('change', update));
+    locBtn.addEventListener('click', () => {
+      navigator.geolocation.getCurrentPosition(pos => {
+        latI.value = pos.coords.latitude.toFixed(4);
+        lngI.value = pos.coords.longitude.toFixed(4);
+        update();
+      }, () => alert("Cannot access location."));
+    });
+
+    update();
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js').catch(console.warn);
+    }
+  </script>
 </body>
 </html>
